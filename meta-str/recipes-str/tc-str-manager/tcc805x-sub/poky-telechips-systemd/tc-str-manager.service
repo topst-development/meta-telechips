@@ -1,0 +1,12 @@
+[Unit]
+Description=telechips str manager for suspend & resume
+After=multi-user.target
+
+[Service]
+Type=forking
+PIDFile=/var/run/str-man.pid
+ExecStart=/usr/bin/TCSTRManager -d 1 -t sub
+
+[Install]
+WantedBy=graphical.target
+

@@ -1,0 +1,11 @@
+[Unit]
+Description=telechips str manager for suspend & resume
+After=pulseaudio.service
+
+[Service]
+Type=forking
+PIDFile=/var/run/str-man.pid
+ExecStart=/usr/bin/TCSTRManager -d 1 -t main 
+[Install]
+WantedBy=multi-user.target
+
