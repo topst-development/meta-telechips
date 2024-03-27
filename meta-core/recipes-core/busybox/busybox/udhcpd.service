@@ -1,0 +1,11 @@
+[Unit]
+Description=udhcpd service
+
+[Service]
+Type=forking
+ExecStartPre=/sbin/ifconfig wlan0 192.168.0.1
+ExecStart=/usr/sbin/udhcpd /etc/udhcpd.conf
+
+[Install]
+WantedBy=multi-user.target
+

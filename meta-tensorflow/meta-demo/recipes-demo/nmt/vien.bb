@@ -1,7 +1,10 @@
 require nmt.inc
 
-SRC_URI_append = "file://download_iwslt15.sh \
+SRC_URI:append = "file://download_iwslt15.sh \
           "
+
+inherit ts_v1
+
 do_compile(){
     mkdir -p ${S}/vien/nmt_data
     mkdir -p ${S}/vien/nmt_model

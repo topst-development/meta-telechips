@@ -3,7 +3,7 @@ inherit autotools-brokensep
 
 DEPENDS += "gnulib"
 
-do_configure_prepend() {
+do_configure:prepend() {
     currdir=`pwd`
     cd ${S}
 

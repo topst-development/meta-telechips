@@ -1,6 +1,7 @@
 require conf/distro/include/security_flags.inc
 
-SECURITY_STRINGFORMAT_pn-busybox-initramfs = ""
+SECURITY_STRINGFORMAT:pn-busybox-initramfs = ""
+SECURITY_CFLAGS:pn-freetype = "${SECURITY_NOPIE_CFLAGS}"
 
 SECURITY_PIC_CFLAGS = "-fPIC"
 SECURITY_PIE_CFLAGS = "-fPIE -pie"

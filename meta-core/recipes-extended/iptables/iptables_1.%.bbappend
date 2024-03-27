@@ -1,4 +1,4 @@
-FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/${PN}:"
 
 SRC_URI += "file://iptables.service"
 SRC_URI += "file://iptables.rules"
@@ -6,9 +6,9 @@ SRC_URI += "file://iptables.rules"
 inherit systemd
 
 SYSTEMD_PACKAGES = "${PN}"
-SYSTEMD_SERVICE_${PN} = "iptables.service"
+SYSTEMD_SERVICE:${PN} = "iptables.service"
 
-do_install_append() {
+do_install:append() {
 	if ${@bb.utils.contains('DISTRO_FEATURES', 'systemd', 'true', 'false', d)}; then
 		install -d ${D}/${systemd_unitdir}/system
 		install -d ${D}/${sysconfdir}/iptables
@@ -21,7 +21,7 @@ do_install_append() {
 	fi
 }
 
-FILES_${PN} += " \
+FILES:${PN} += " \
 	${@bb.utils.contains('DISTRO_FEATURES', 'systemd', '${systemd_unitdir}', '', d)} \
 	${@bb.utils.contains('DISTRO_FEATURES', 'systemd', '${sysconfdir}', '', d)} \
 "

@@ -12,3 +12,5 @@ S = "${WORKDIR}/git"
 
 PATCHTOOL = "git"
 BBCLASSEXTEND = "native nativesdk"
+
+COMPATIBLE_MACHINE="!tcc807x"

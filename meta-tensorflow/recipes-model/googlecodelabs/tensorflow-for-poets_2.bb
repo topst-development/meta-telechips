@@ -7,7 +7,7 @@ LIC_FILES_CHKSUM = " \
     file://${COMMON_LICENSE_DIR}/CC-BY-2.0;md5=b79db37a058b24d186ed078d34982463 \
 "
 
-SRC_URI = "git://github.com/googlecodelabs/tensorflow-for-poets-2.git; \
+SRC_URI = "git://github.com/googlecodelabs/tensorflow-for-poets-2.git;;branch=master;protocol=https \
            file://0001-customize-for-Yocto.patch \
            file://label_image_lite.py \
           "
@@ -37,7 +37,7 @@ DEPENDS += " \
     python3-termcolor-native \
     tensorflow-estimator-native \
 "
-RDEPENDS_${PN} += "tensorflow \
+RDEPENDS:${PN} += "tensorflow \
                    python3-core \
                    python3-pillow \
 "
@@ -98,6 +98,12 @@ do_install () {
         cp -rf ${SAMPLE_IMAGES} ${D}${datadir}/label_image/
 }
 
-FILES_${PN} += "${libdir}/* ${datadir}/*"
+FILES:${PN} += "${libdir}/* ${datadir}/*"
 
-inherit unsupportarch
+inherit unsupportarch tensorflow_ver
+
+python __anonymous() {
+    if '--config=v1' not in (d.getVar("TF_ARGS_EXTRA") or "").split():
+        msg =  "\nIt requires tensorflow 1.x, add 'TF_ARGS_EXTRA = \"--config=v1\"' to local.conf"
+        raise bb.parse.SkipPackage(msg)
+}

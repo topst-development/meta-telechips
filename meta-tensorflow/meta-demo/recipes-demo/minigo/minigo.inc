@@ -7,9 +7,10 @@ SECTION = "demo"
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=a9923a91d2c553be6c1b23d7d4c731d8"
 
-SRC_URI = "git://github.com/tensorflow/minigo.git;branch=master"
+SRC_URI = "git://github.com/tensorflow/minigo.git;branch=master;protocol=https"
 SRCREV = "dde33d5f0176d446f5ab1a2e6a392bb32bf0e720"
 PV = "0.0+git${SRCPV}"
 
 S = "${WORKDIR}/git"
 
+inherit ts_v1

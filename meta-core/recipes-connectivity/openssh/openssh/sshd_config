@@ -115,7 +115,7 @@ Compression no
 ClientAliveInterval 15
 ClientAliveCountMax 4
 #UseDNS yes
-#PidFile /var/run/sshd.pid
+#PidFile /run/sshd.pid
 #MaxStartups 10:30:100
 #PermitTunnel no
 #ChrootDirectory none

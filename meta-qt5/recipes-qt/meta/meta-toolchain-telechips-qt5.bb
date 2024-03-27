@@ -7,4 +7,4 @@ require recipes-core/meta/meta-toolchain-telechips.bb
 
 inherit populate_sdk_qt5
 
-FEATURES_append = "-qt5"
+FEATURES:append = "-qt5"

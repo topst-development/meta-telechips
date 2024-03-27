@@ -12,8 +12,6 @@
 # %s{filename} the content of a sysfs attribute
 # %% the '%' char itself
 #
-# skip nand partition
-ENV{DEVNAME}=="/dev/ndda*",				GOTO="skip_automount"
 
 # skip emmc partition
 ENV{DEVNAME}=="/dev/mmcblk0p*",         GOTO="skip_automount"

@@ -1,1 +1,1 @@
-RDEPENDS_${PN} += "openssh-sftp-server rsync"
+RDEPENDS:${PN} += "openssh-sftp-server rsync"

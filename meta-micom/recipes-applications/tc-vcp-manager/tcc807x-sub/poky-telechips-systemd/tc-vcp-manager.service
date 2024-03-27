@@ -1,0 +1,16 @@
+[Unit]
+Description=micom manager daemon
+DefaultDependencies=no
+After=systemd-journald.service
+
+[Service]
+Type=forking
+BusName=telechips.vcp_manager.process
+PIDFile=/run/tc-vcp-manager.pid
+ExecStart=/usr/bin/TCVCPManager -D 1 -M /dev/spidev0.0 -A /dev/tcc_ipc_ap
+ExecStop=/usr/bin/killall -9 TCVCPManager
+RestartSec=1sec
+Restart=always
+
+[Install]
+WantedBy=multi-user.target

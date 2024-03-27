@@ -4,7 +4,7 @@ After=multi-user.target
 
 [Service]
 Type=forking
-PIDFile=/var/run/str-man.pid
+PIDFile=/run/str-man.pid
 ExecStart=/usr/bin/TCSTRManager -d 1 -t main 
 [Install]
 WantedBy=graphical.target

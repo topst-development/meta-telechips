@@ -1,0 +1,92 @@
+From 656f5e0f4fdcdf25de8629e645e32571b16910cc Mon Sep 17 00:00:00 2001
+From: Hongxu Jia <hongxu.jia@windriver.com>
+Date: Mon, 16 May 2022 00:51:03 -0700
+Subject: [PATCH] support 32 bit x64 and arm for yocto
+
+Upstream-Status: Inappropriate [oe specific]
+
+Signed-off-by: Hongxu Jia <hongxu.jia@windriver.com>
+---
+ tensorflow/BUILD                              |  3 --
+ tensorflow/workspace2.bzl                     |  1 +
+ .../0001-XNNPACK-support-32-bit-x86.patch     | 29 +++++++++++++++++++
+ third_party/cpuinfo/cpuinfo.BUILD             |  1 -
+ 4 files changed, 30 insertions(+), 4 deletions(-)
+ create mode 100644 third_party/0001-XNNPACK-support-32-bit-x86.patch
+
+diff --git a/tensorflow/BUILD b/tensorflow/BUILD
+index 7ae7fc79356..8fcccf01f25 100644
+--- a/tensorflow/BUILD
++++ b/tensorflow/BUILD
+@@ -124,9 +124,6 @@ config_setting(
+         {},
+     ),
+     values = dict(
+-        if_oss(
+-            {"crosstool_top": "//external:android/crosstool"},
+-        ),
+         cpu = "x86",
+     ),
+     visibility = ["//visibility:public"],
+diff --git a/tensorflow/workspace2.bzl b/tensorflow/workspace2.bzl
+index f5c323174d5..9d99947286d 100644
+--- a/tensorflow/workspace2.bzl
++++ b/tensorflow/workspace2.bzl
+@@ -145,6 +145,7 @@ def _tf_repositories():
+         name = "XNNPACK",
+         sha256 = "7e9ad45391e5158fd00e816022bda21d54a6180788af7c455c864a78cee252c6",
+         strip_prefix = "XNNPACK-11b2812d64e49bab9b6c489f79067fc94e69db9f",
++        patch_file = ["//third_party:0001-XNNPACK-support-32-bit-x86.patch"],
+         urls = tf_mirror_urls("https://github.com/google/XNNPACK/archive/11b2812d64e49bab9b6c489f79067fc94e69db9f.zip"),
+     )
+     # LINT.ThenChange(//tensorflow/lite/tools/cmake/modules/xnnpack.cmake)
+diff --git a/third_party/0001-XNNPACK-support-32-bit-x86.patch b/third_party/0001-XNNPACK-support-32-bit-x86.patch
+new file mode 100644
+index 00000000000..2141c37236b
+--- /dev/null
++++ b/third_party/0001-XNNPACK-support-32-bit-x86.patch
+@@ -0,0 +1,29 @@
++From 2345756776fa09fd95e29f96f781e15e3b18a61b Mon Sep 17 00:00:00 2001
++From: Hongxu Jia <hongxu.jia@windriver.com>
++Date: Tue, 17 Aug 2021 01:09:53 -0700
++Subject: [PATCH] XNNPACK: support 32 bit x86
++
++Use android_x86 as a workaround to support 32 bit x86
++
++Upstream-Status: Inappropriate [oe specific]
++
++Signed-off-by: Hongxu Jia <hongxu.jia@windriver.com>
++---
++ BUILD.bazel | 1 -
++ 1 file changed, 1 deletion(-)
++
++diff --git a/BUILD.bazel b/BUILD.bazel
++index 27ab07c9..f223d2ab 100644
++--- a/BUILD.bazel
+++++ b/BUILD.bazel
++@@ -8783,7 +8783,6 @@ config_setting(
++ config_setting(
++     name = "android_x86",
++     values = {
++-        "crosstool_top": "//external:android/crosstool",
++         "cpu": "x86",
++     },
++ )
++-- 
++2.30.2
++
+diff --git a/third_party/cpuinfo/cpuinfo.BUILD b/third_party/cpuinfo/cpuinfo.BUILD
+index eb2937d20ef..7c435fe6595 100644
+--- a/third_party/cpuinfo/cpuinfo.BUILD
++++ b/third_party/cpuinfo/cpuinfo.BUILD
+@@ -266,7 +266,6 @@ config_setting(
+ config_setting(
+     name = "android_x86",
+     values = {
+-        "crosstool_top": "//external:android/crosstool",
+         "cpu": "x86",
+     },
+     visibility = ["//visibility:public"],
+-- 
+2.36.0
+

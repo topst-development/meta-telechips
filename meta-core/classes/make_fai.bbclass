@@ -1,4 +1,7 @@
 UFS_MKIMGCMD = "${@oe.utils.conditional('BOOT_STORAGE', 'ufs', '--sector_size 4096', '', d)}"
+MAKE_PLIST ?= "make_plist_${TCC_ARCH_FAMILY}"
+
+BOOT_IMAGE_NAME = "${@bb.utils.contains('IMAGE_FEATURES', 'uboot-fit', 'fitImage', 'tc-boot-${MACHINE}.img$1', d)}"
 
 do_cleanfwdn() {
 	rm -rf ${DEPLOY_DIR}/fwdn
@@ -7,26 +10,32 @@ do_cleanfwdn() {
 do_make_fai() {
 	install -d ${DEPLOY_DIR}/fwdn
 	if [ ! -e ${DEPLOY_DIR}/home-directory.ext4 ]; then
-		dd if=/dev/zero of=${DEPLOY_DIR}/home-directory.ext4 bs=1024 count=512000
-		mkfs.ext4 -b 4096 ${DEPLOY_DIR}/home-directory.ext4
+		home_data_size=`expr ${HOME_DATA_SIZE} \* 1024`
+		/bin/dd if=/dev/zero of=${DEPLOY_DIR}/home-directory.ext4 bs=1024 count=${home_data_size}
+		/sbin/mkfs.ext4 -b 4096 ${DEPLOY_DIR}/home-directory.ext4
+	else
+		home_size=`stat -c%s ${DEPLOY_DIR}/home-directory.ext4`
+		home_size=`expr ${home_size} / 1024 / 1024`
+		if [ ${home_size} != ${HOME_DATA_SIZE} ]; then
+			rm -f ${DEPLOY_DIR}/home-directory.ext4
+			home_data_size=`expr ${HOME_DATA_SIZE} \* 1024`
+			/bin/dd if=/dev/zero of=${DEPLOY_DIR}/home-directory.ext4 bs=1024 count=${home_data_size}
+			/sbin/mkfs.ext4 -b 4096 ${DEPLOY_DIR}/home-directory.ext4
+		fi
 	fi
 
-	dtb=${KERNEL_DEVICETREE}
+	dtb=`echo ${KERNEL_DEVICETREE} | cut -d ' ' -f1`
 	dtb_ext=${dtb##*.}
 	dtb_name=`basename $dtb .$dtb_ext`
 
 	system_name=`ls -lh --block-size=M ${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}`
 	for i in ${system_name}; do true; done
 	system_size=`stat -c%s ${DEPLOY_DIR}/images/${MACHINE}/${i}`
-
-	# 10% increase
-	#system_size=`expr ${system_size} / 1024 / 1024  + ${system_size} / 1024 / 1024 / 10`
-	# 50M increase
-	system_size=`expr ${system_size} / 1024 / 1024 + 50`
+	system_size=`expr ${system_size} / 1024 / 1024  + ${system_size} / 1024 / 1024 / 10`
 
 	rm -f ${DEPLOY_DIR}/fwdn/partition.list*
 
-	if ${@bb.utils.contains('INVITE_PLATFORM', 'with-subcore', 'true', 'false', d)}; then
+	if ${@bb.utils.contains('TCC_BSP_FEATURES', 'with-subcore', 'true', 'false', d)}; then
 		if [ -L ${SUBCORE_DEPLOY_DIR}/${SUBCORE_ROOTFS_IMAGE_NAME} ]; then
 			subcore_item_real_name=`readlink ${SUBCORE_DEPLOY_DIR}/${SUBCORE_ROOTFS_IMAGE_NAME}`
 		else
@@ -34,19 +43,21 @@ do_make_fai() {
 		fi
 		for i in ${subcore_item_real_name}; do true; done
 		subcore_item_size=`stat -c%s ${SUBCORE_DEPLOY_DIR}/${i}`
-
-		# 10% increase
-		#subcore_item_size=`expr 10 + ${subcore_item_size} / 1024 / 1024 + ${subcore_item_size} / 1024 / 1024 / 10`
-		# 50M increase
-		subcore_item_size=`expr ${subcore_item_size} / 1024 / 1024 + 50`
+		if [ ${TCC_ARCH_FAMILY} == "tcc805x" ]; then
+			subcore_item_size=`expr 10 + ${subcore_item_size} / 1024 / 1024 + ${subcore_item_size} / 1024 / 1024 / 10`
+		else
+			subcore_item_size=`expr 1 + ${subcore_item_size} / 1024 / 1024 + ${subcore_item_size} / 1024 / 1024 / 10`
+		fi
 	fi
 
 #create partition list
 	touch ${DEPLOY_DIR}/fwdn/partition.list
-	make_plist_${TCC_ARCH_FAMILY}
+	${MAKE_PLIST}
 
-	if ${@bb.utils.contains('INVITE_PLATFORM', 'optee', 'true', 'false', d)}; then
-		echo "sest:8M@${DEPLOY_DIR}/images/${MACHINE}/sest.ext4" >> ${DEPLOY_DIR}/fwdn/partition.list
+	if ${@bb.utils.contains('TCC_BSP_FEATURES', 'optee', 'true', 'false', d)}; then
+		if [ -e ${DEPLOY_DIR}/images/${MACHINE}/optee.rom ]; then
+			cp -ap ${DEPLOY_DIR}/images/${MACHINE}/optee.rom* ${DEPLOY_DIR}/images/${MACHINE}/boot-firmware/prebuilt
+		fi
 	fi
 
 	add_additional_partitions "${DEPLOY_DIR}/fwdn/partition.list"
@@ -55,8 +66,8 @@ do_make_fai() {
 	if [ ! -e ${DEPLOY_DIR}/user-data.ext4 ] || [ ! -e ${DEPLOY_DIR}/user-data.size ] || [ ${user_data_size} != `cat ${DEPLOY_DIR}/user-data.size` ]; then
 		rm -f ${DEPLOY_DIR}/user-data.ext4
 		data_sizeK=`expr ${user_data_size} \* 1024`
-		dd if=/dev/zero of=${DEPLOY_DIR}/user-data.ext4 bs=1024 count=${data_sizeK}
-		mkfs.ext4 -b 4096 ${DEPLOY_DIR}/user-data.ext4
+		/bin/dd if=/dev/zero of=${DEPLOY_DIR}/user-data.ext4 bs=1024 count=${data_sizeK}
+		/sbin/mkfs.ext4 -b 4096 ${DEPLOY_DIR}/user-data.ext4
 		echo -n "${user_data_size}" > ${DEPLOY_DIR}/user-data.size
 	fi
 	echo -n "data:${user_data_size}M@${DEPLOY_DIR}/user-data.ext4"	>> ${DEPLOY_DIR}/fwdn/partition.list
@@ -76,65 +87,115 @@ do_make_fai() {
 		--gptfile ${DEPLOY_DIR}/fwdn/SD_Data.gpt ${UFS_MKIMGCMD}
 }
 
-make_plist_tcc805x() {
-	echo "bl3_ca72_a:2M@${DEPLOY_DIR}/images/${MACHINE}/ca72_bl3.rom$1"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
+make_plist_tcc807x() {
+	echo "bl3_ap0_a:2M@${DEPLOY_DIR}/images/${MACHINE}/ap0_bl3.rom$1"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	echo "bl3_ap0_b:2M@${DEPLOY_DIR}/images/${MACHINE}/ap0_bl3.rom$1"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
 
 	if ${@bb.utils.contains('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
-		echo "boot_a:30M@${DEPLOY_DIR}/images/${MACHINE}/tc-boot-${MACHINE}.img$1"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
-		echo "boot_b:30M@${DEPLOY_DIR}/images/${MACHINE}/tc-boot-${MACHINE}.img$1"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "boot_a:40M@${DEPLOY_DIR}/images/${MACHINE}/${BOOT_IMAGE_NAME}"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "boot_b:40M@${DEPLOY_DIR}/images/${MACHINE}/${BOOT_IMAGE_NAME}"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
+
+		echo "system_a:${system_size}M@${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "system_b:${system_size}M@${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
+
+		echo "dtb_a:1024K@${DEPLOY_DIR}/images/${MACHINE}/$dtb_name.$dtb_ext"							>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "dtb_b:1024K@${DEPLOY_DIR}/images/${MACHINE}/$dtb_name.$dtb_ext"							>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	else
+		echo "boot:40M@${DEPLOY_DIR}/images/${MACHINE}/${BOOT_IMAGE_NAME}"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
+
+		echo "system:${system_size}M@${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
+
+		echo "dtb:1024K@${DEPLOY_DIR}/images/${MACHINE}/$dtb_name.$dtb_ext"							>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	fi
+
+	echo "misc:1M@"																					>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	echo "splash:40M@"																				>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	echo "home:${HOME_DATA_SIZE}M@${DEPLOY_DIR}/home-directory.ext4"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
+
+	if ${@bb.utils.contains('TCC_BSP_FEATURES', 'with-subcore', 'true', 'false', d)}; then
+		echo "bl3_ap1_a:2M@${SUBCORE_DEPLOY_DIR}/ap1_bl3.rom$1"										>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "bl3_ap1_b:2M@${SUBCORE_DEPLOY_DIR}/ap1_bl3.rom$1"										>> ${DEPLOY_DIR}/fwdn/partition.list$1
+
+		if ${@bb.utils.contains('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
+			echo "subcore_boot_a:40M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			echo "subcore_boot_b:40M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
+
+			echo "subcore_dtb_a:1024K@${SUBCORE_DEPLOY_DIR}/${SUBCORE_DTB_IMAGE_NAME}"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			echo "subcore_dtb_b:1024K@${SUBCORE_DEPLOY_DIR}/${SUBCORE_DTB_IMAGE_NAME}"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+
+			echo "subcore_root_a:${subcore_item_size}M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_ROOTFS_IMAGE_NAME}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			echo "subcore_root_b:${subcore_item_size}M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_ROOTFS_IMAGE_NAME}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		else
+			echo "subcore_boot:40M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			echo "subcore_dtb:1024K@${SUBCORE_DEPLOY_DIR}/${SUBCORE_DTB_IMAGE_NAME}"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			echo "subcore_root:${subcore_item_size}M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_ROOTFS_IMAGE_NAME}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		fi
+
+		if [ -e ${SUBCORE_DEPLOY_DIR}/${SPLASH_IMAGE} ]; then
+			if ${@bb.utils.contains('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
+				echo "subcore_splash_a:40M@"																>> ${DEPLOY_DIR}/fwdn/partition.list$1
+				echo "subcore_splash_b:40M@"																>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			else
+				echo "subcore_splash:40M@"																	>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			fi
+		fi
+		echo "subcore_misc:1M@"																				>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "home_sub:${HOME_DATA_SIZE}M@${DEPLOY_DIR}/home-directory.ext4"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		add_additional_subcore_partitions "${DEPLOY_DIR}/fwdn/partition.list$1"
+	fi
+}
+
+make_plist_tcc805x() {
+	echo "bl3_ca72_a:2M@${DEPLOY_DIR}/images/${MACHINE}/ca72_bl3.rom$1"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	echo "bl3_ca72_b:2M@${DEPLOY_DIR}/images/${MACHINE}/ca72_bl3.rom$1"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
+
+	if ${@bb.utils.contains('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
+		echo "boot_a:30M@${DEPLOY_DIR}/images/${MACHINE}/${BOOT_IMAGE_NAME}"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "boot_b:30M@${DEPLOY_DIR}/images/${MACHINE}/${BOOT_IMAGE_NAME}"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		echo "system_a:${system_size}M@${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		echo "system_b:${system_size}M@${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		echo "dtb_a:200K@${DEPLOY_DIR}/images/${MACHINE}/$dtb_name.$dtb_ext"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		echo "dtb_b:200K@${DEPLOY_DIR}/images/${MACHINE}/$dtb_name.$dtb_ext"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
 	else
-		echo "boot:60M@${DEPLOY_DIR}/images/${MACHINE}/tc-boot-${MACHINE}.img$1"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "boot:30M@${DEPLOY_DIR}/images/${MACHINE}/${BOOT_IMAGE_NAME}"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		echo "system:${system_size}M@${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		echo "dtb:200K@${DEPLOY_DIR}/images/${MACHINE}/$dtb_name.$dtb_ext"							>> ${DEPLOY_DIR}/fwdn/partition.list$1
 	fi
-	echo "env:1M@"																					>> ${DEPLOY_DIR}/fwdn/partition.list$1
 	echo "misc:1M@"																					>> ${DEPLOY_DIR}/fwdn/partition.list$1
 	echo "splash:40M@"																				>> ${DEPLOY_DIR}/fwdn/partition.list$1
-	echo "home:500M@${DEPLOY_DIR}/home-directory.ext4"												>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	echo "home:${HOME_DATA_SIZE}M@${DEPLOY_DIR}/home-directory.ext4"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
 
-	if ${@bb.utils.contains_any('INVITE_PLATFORM', 'with-subcore', 'true', 'false', d)}; then
-		echo "bl3_ca53_a:2M@${SUBCORE_DEPLOY_DIR}/ca53_bl3.rom$1"									>> ${DEPLOY_DIR}/fwdn/partition.list$1
-		if ${@bb.utils.contains_any('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
-			echo "subcore_boot_a:30M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"			>> ${DEPLOY_DIR}/fwdn/partition.list$1
-			echo "subcore_boot_b:30M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"			>> ${DEPLOY_DIR}/fwdn/partition.list$1
-		else
-			echo "subcore_boot:30M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"				>> ${DEPLOY_DIR}/fwdn/partition.list$1
-		fi
+	if ${@bb.utils.contains('TCC_BSP_FEATURES', 'with-subcore', 'true', 'false', d)}; then
+		echo "bl3_ca53_a:2M@${SUBCORE_DEPLOY_DIR}/ca53_bl3.rom$1"											>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "bl3_ca53_b:2M@${SUBCORE_DEPLOY_DIR}/ca53_bl3.rom$1"											>> ${DEPLOY_DIR}/fwdn/partition.list$1
 
-		if ${@bb.utils.contains_any('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
-			echo "subcore_dtb_a:200K@${SUBCORE_DEPLOY_DIR}/${SUBCORE_DTB_IMAGE_NAME}"				>> ${DEPLOY_DIR}/fwdn/partition.list$1
-			echo "subcore_dtb_b:200K@${SUBCORE_DEPLOY_DIR}/${SUBCORE_DTB_IMAGE_NAME}"				>> ${DEPLOY_DIR}/fwdn/partition.list$1
-		else
-			echo "subcore_dtb:200K@${SUBCORE_DEPLOY_DIR}/${SUBCORE_DTB_IMAGE_NAME}"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
-		fi
+		if ${@bb.utils.contains('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
+			echo "subcore_boot_a:30M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			echo "subcore_boot_b:30M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
 
-		echo "subcore_env:1M@"																		>> ${DEPLOY_DIR}/fwdn/partition.list$1
-		echo "subcore_misc:1M@"																		>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			echo "subcore_dtb_a:200K@${SUBCORE_DEPLOY_DIR}/${SUBCORE_DTB_IMAGE_NAME}"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			echo "subcore_dtb_b:200K@${SUBCORE_DEPLOY_DIR}/${SUBCORE_DTB_IMAGE_NAME}"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
 
-		if [ -e ${SUBCORE_DEPLOY_DIR}/${SPLASH_IMAGE} ]; then
-			if ${@bb.utils.contains_any('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
-				echo "subcore_splash_a:40M@${SUBCORE_DEPLOY_DIR}/${SPLASH_IMAGE}"			>> ${DEPLOY_DIR}/fwdn/partition.list$1
-				echo "subcore_splash_b:40M@${SUBCORE_DEPLOY_DIR}/${SPLASH_IMAGE}"			>> ${DEPLOY_DIR}/fwdn/partition.list$1
-			else
-				echo "subcore_splash:40M@${SUBCORE_DEPLOY_DIR}/${SPLASH_IMAGE}"				>> ${DEPLOY_DIR}/fwdn/partition.list$1
-			fi
-
-		fi
-
-		if ${@bb.utils.contains_any('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
 			echo "subcore_root_a:${subcore_item_size}M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_ROOTFS_IMAGE_NAME}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
 			echo "subcore_root_b:${subcore_item_size}M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_ROOTFS_IMAGE_NAME}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		else
+			echo "subcore_boot:30M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			echo "subcore_dtb:200K@${SUBCORE_DEPLOY_DIR}/${SUBCORE_DTB_IMAGE_NAME}"							>> ${DEPLOY_DIR}/fwdn/partition.list$1
 			echo "subcore_root:${subcore_item_size}M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_ROOTFS_IMAGE_NAME}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		fi
-	fi
 
-	if [ -e ${DEPLOY_DIR}/images/${MACHINE}/optee.rom ]; then
-		cp -ap ${DEPLOY_DIR}/images/${MACHINE}/optee.rom* ${DEPLOY_DIR}/images/${MACHINE}/boot-firmware
+		if [ -e ${SUBCORE_DEPLOY_DIR}/${SPLASH_IMAGE} ]; then
+			if ${@bb.utils.contains('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
+				echo "subcore_splash_a:40M@${SUBCORE_DEPLOY_DIR}/${SPLASH_IMAGE}"							>> ${DEPLOY_DIR}/fwdn/partition.list$1
+				echo "subcore_splash_b:40M@${SUBCORE_DEPLOY_DIR}/${SPLASH_IMAGE}"							>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			else
+				echo "subcore_splash:40M@${SUBCORE_DEPLOY_DIR}/${SPLASH_IMAGE}"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			fi
+		fi
+
+		echo "subcore_misc:1M@"																				>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "home_sub:${HOME_DATA_SIZE}M@${DEPLOY_DIR}/home-directory.ext4"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		add_additional_subcore_partitions "${DEPLOY_DIR}/fwdn/partition.list$1"
 	fi
 }
 
@@ -142,48 +203,67 @@ make_plist_tcc803x() {
 	echo "bl3_ca53_a:2M@${DEPLOY_DIR}/images/${MACHINE}/u-boot.rom$1"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
 	echo "bl3_ca53_b:2M@${DEPLOY_DIR}/images/${MACHINE}/u-boot.rom$1"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
 	if ${@bb.utils.contains('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
-		echo "boot_a:30M@${DEPLOY_DIR}/images/${MACHINE}/tc-boot-${MACHINE}.img$1"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
-		echo "boot_b:30M@${DEPLOY_DIR}/images/${MACHINE}/tc-boot-${MACHINE}.img$1"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "boot_a:30M@${DEPLOY_DIR}/images/${MACHINE}/${BOOT_IMAGE_NAME}"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "boot_b:30M@${DEPLOY_DIR}/images/${MACHINE}/${BOOT_IMAGE_NAME}"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		echo "system_a:${system_size}M@${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		echo "system_b:${system_size}M@${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		echo "dtb_a:200K@${DEPLOY_DIR}/images/${MACHINE}/$dtb_name.$dtb_ext"							>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		echo "dtb_b:200K@${DEPLOY_DIR}/images/${MACHINE}/$dtb_name.$dtb_ext"							>> ${DEPLOY_DIR}/fwdn/partition.list$1
 
 	else
-		echo "boot:30M@${DEPLOY_DIR}/images/${MACHINE}/tc-boot-${MACHINE}.img$1"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "boot:30M@${DEPLOY_DIR}/images/${MACHINE}/${BOOT_IMAGE_NAME}"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		echo "system:${system_size}M@${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		echo "dtb:200K@${DEPLOY_DIR}/images/${MACHINE}/$dtb_name.$dtb_ext"							>> ${DEPLOY_DIR}/fwdn/partition.list$1
 	fi
-	echo "env:1M@"																					>> ${DEPLOY_DIR}/fwdn/partition.list$1
 	echo "misc:1M@"																					>> ${DEPLOY_DIR}/fwdn/partition.list$1
-	if [ -e ${DEPLOY_DIR}/images/${MACHINE}/splash_1920x720x32_tcc803xp.img ]; then
-		echo "splash:40M@${DEPLOY_DIR}/images/${MACHINE}/splash_1920x720x32_tcc803xp.img"				>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	if [ -e ${DEPLOY_DIR}/images/${MACHINE}/splash_1920x720x32_tcc803x.img ]; then
+		echo "splash:40M@${DEPLOY_DIR}/images/${MACHINE}/splash_1920x720x32_tcc803x.img"				>> ${DEPLOY_DIR}/fwdn/partition.list$1
 	else
 		echo "splash:40M@"																				>> ${DEPLOY_DIR}/fwdn/partition.list$1
 	fi
 	echo "home:500M@${DEPLOY_DIR}/home-directory.ext4"												>> ${DEPLOY_DIR}/fwdn/partition.list$1
-	if ${@bb.utils.contains('INVITE_PLATFORM', 'with-subcore', 'true', 'false', d)}; then
+	if ${@bb.utils.contains('TCC_BSP_FEATURES', 'with-subcore', 'true', 'false', d)}; then
 		if ${@bb.utils.contains('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
-			echo "a7s_boot_a:8M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"				>> ${DEPLOY_DIR}/fwdn/partition.list$1
-			echo "a7s_boot_b:8M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"				>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			echo "a7s_boot_a:10M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"				>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			echo "a7s_boot_b:10M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"				>> ${DEPLOY_DIR}/fwdn/partition.list$1
 			echo "a7s_dtb_a:200K@${SUBCORE_DEPLOY_DIR}/${SUBCORE_DTB_IMAGE_NAME}"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
 			echo "a7s_dtb_b:200K@${SUBCORE_DEPLOY_DIR}/${SUBCORE_DTB_IMAGE_NAME}"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
 			echo "a7s_root_a:${subcore_item_size}M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_ROOTFS_IMAGE_NAME}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
 			echo "a7s_root_b:${subcore_item_size}M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_ROOTFS_IMAGE_NAME}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
 		else
-			echo "a7s_boot:8M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"				>> ${DEPLOY_DIR}/fwdn/partition.list$1
+			echo "a7s_boot:10M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_BOOT_IMAGE_NAME}$1"				>> ${DEPLOY_DIR}/fwdn/partition.list$1
 			echo "a7s_dtb:200K@${SUBCORE_DEPLOY_DIR}/${SUBCORE_DTB_IMAGE_NAME}"					>> ${DEPLOY_DIR}/fwdn/partition.list$1
 			echo "a7s_root:${subcore_item_size}M@${SUBCORE_DEPLOY_DIR}/${SUBCORE_ROOTFS_IMAGE_NAME}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
 
 		fi
 	fi
+}
 
-	if [ -e ${DEPLOY_DIR}/images/${MACHINE}/optee.rom ]; then
-		cp -ap ${DEPLOY_DIR}/images/${MACHINE}/optee.rom* ${DEPLOY_DIR}/images/${MACHINE}/boot-firmware
+make_plist_tcc750x() {
+	echo "bl3_ca53_a:2M@${DEPLOY_DIR}/images/${MACHINE}/u-boot.rom$1"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	echo "bl3_ca53_b:2M@${DEPLOY_DIR}/images/${MACHINE}/u-boot.rom$1"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	if ${@bb.utils.contains('INVITE_PLATFORM', 'fw-update', 'true', 'false', d)}; then
+		echo "boot_a:40M@${DEPLOY_DIR}/images/${MACHINE}/${BOOT_IMAGE_NAME}"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "boot_b:40M@${DEPLOY_DIR}/images/${MACHINE}/${BOOT_IMAGE_NAME}"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "system_a:${system_size}M@${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "system_b:${system_size}M@${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "dtb_a:200K@${DEPLOY_DIR}/images/${MACHINE}/$dtb_name.$dtb_ext"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "dtb_b:200K@${DEPLOY_DIR}/images/${MACHINE}/$dtb_name.$dtb_ext"						>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	else
+		echo "boot:40M@${DEPLOY_DIR}/images/${MACHINE}/${BOOT_IMAGE_NAME}"							>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "system:${system_size}M@${DEPLOY_DIR}/images/${MACHINE}/${IMAGE_LINK_NAME}.${DEFAULT_IMAGE_FSTYPE}"	>> ${DEPLOY_DIR}/fwdn/partition.list$1
+		echo "dtb:200K@${DEPLOY_DIR}/images/${MACHINE}/$dtb_name.$dtb_ext"							>> ${DEPLOY_DIR}/fwdn/partition.list$1
 	fi
+	echo "env:1M@"																					>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	echo "misc:1M@"																					>> ${DEPLOY_DIR}/fwdn/partition.list$1
+	echo "home:${HOME_DATA_SIZE}M@${DEPLOY_DIR}/home-directory.ext4"								>> ${DEPLOY_DIR}/fwdn/partition.list$1
 }
 
 add_additional_partitions() {
+	echo "No exist additional partition"
+}
+
+add_additional_subcore_partitions() {
 	echo "No exist additional partition"
 }
 

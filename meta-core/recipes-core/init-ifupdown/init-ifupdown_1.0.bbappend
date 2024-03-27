@@ -1,8 +1,8 @@
-FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}-${PV}:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/${PN}-${PV}:"
 
 SRC_URI += "file://resolv.conf"
 
-do_install_append () {
+do_install:append () {
 	install -m 0644 ${WORKDIR}/interfaces ${D}${sysconfdir}/network/interfaces
 	sed -i 's%^#\(\s*iface.*static.*\)%\1%g'  									${D}${sysconfdir}/network/interfaces
 	sed -i 's%^#\(\s*hwaddress.*\)MY_MAC_ADDRESS%\1${MY_MAC_ADDRESS}%g'  		${D}${sysconfdir}/network/interfaces

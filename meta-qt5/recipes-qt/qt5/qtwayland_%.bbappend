@@ -1,4 +1,4 @@
-FILESEXTRAPATHS_prepend := "${THISDIR}/${PN}:"
+FILESEXTRAPATHS:prepend := "${THISDIR}/${PN}:"
 
 # matching for /usr/include/EGL/eglplatform.h
 QT_WAYLAND_DEFINES = "WL_EGL_PLATFORM"
@@ -16,9 +16,4 @@ SRC_URI += " \
 	file://0102-Check-surface-exists-when-setting-textinput-focus.patch \
 	${@bb.utils.contains("INVITE_PLATFORM", 'ivi-extension', 'file://0201-Implement-initial-IVI-Shell-support.patch', '', d)} \
 	${@bb.utils.contains("INVITE_PLATFORM", 'ivi-extension', 'file://0202-add-support-for-IVI-Surface-ID-property.patch', '', d)} \
-"
-
-SRC_URI_append_tcc897x = " \
-	file://0103-Create-and-destroy-the-shell-surface-when-showing-an.patch \
-	file://0104-upg-Update-qtwayland-to-prevent-null-pointer-excepti.patch \
 "

@@ -2,11 +2,9 @@ SUMMARY = "Telechips Core packages for Linux/GNU runtime images"
 DESCRIPTION = "The minimal set of packages required to boot the Telechips System"
 PR = "r17"
 
-PACKAGE_ARCH = "${MACHINE_ARCH}"
-
 inherit packagegroup
 
-RDEPENDS_${PN} = "\
+RDEPENDS:${PN} = "\
 	acl \
 	attr \
 	bash \
@@ -24,7 +22,6 @@ RDEPENDS_${PN} = "\
 	logrotate \
 	mingetty \
 	ncurses \
-	procps \
 	psmisc \
 	sed \
 	sudo \
@@ -41,3 +38,4 @@ RDEPENDS_${PN} = "\
 	vim \
 	which \
 "
+RDEPENDS:${PN} += "${@bb.utils.contains('TCC_BSP_FEATURES', 'network', 'packagegroup-telechips-base-net', '', d)}"

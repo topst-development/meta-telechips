@@ -1,7 +1,8 @@
 DESCRIPTION = "Telechips Packagergroup for Pulseaudio"
+
 inherit packagegroup
 
-RDEPENDS_${PN}= "\
+RDEPENDS:${PN}= "\
 	pulseaudio \
 	pulseaudio-server \
 	pulseaudio-misc \

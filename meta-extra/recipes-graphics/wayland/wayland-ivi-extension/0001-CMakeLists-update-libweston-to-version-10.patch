@@ -1,0 +1,51 @@
+From 2769aa9e678e69ba6352a8bf5bc47a34297bbf63 Mon Sep 17 00:00:00 2001
+From: YoungJun <youngjun@telechips.com>
+Date: Mon, 12 Jun 2023 10:58:14 +0900
+Subject: [PATCH] CMakeLists: update libweston to version 10
+
+Update the libweston-10 on ivi-id-agent cmake file.
+Update the libweston-10-protocols on simple-weston-client cmake file
+
+Change-Id: Iec3744605ea6d26391df02d1e32919930180b89b
+---
+ ivi-id-agent-modules/ivi-id-agent/CMakeLists.txt              | 2 +-
+ .../simple-weston-client/CMakeLists.txt                       | 4 ++--
+ 2 files changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/ivi-id-agent-modules/ivi-id-agent/CMakeLists.txt b/ivi-id-agent-modules/ivi-id-agent/CMakeLists.txt
+index e9544ef..efb516b 100644
+--- a/ivi-id-agent-modules/ivi-id-agent/CMakeLists.txt
++++ b/ivi-id-agent-modules/ivi-id-agent/CMakeLists.txt
+@@ -25,7 +25,7 @@ find_package(PkgConfig REQUIRED)
+ pkg_check_modules(WAYLAND_SERVER wayland-server REQUIRED)
+ pkg_check_modules(WESTON weston>=6.0.0 REQUIRED)
+ pkg_check_modules(PIXMAN pixman-1 REQUIRED)
+-pkg_check_modules(LIBWESTON_DESKTOP libweston-desktop-9 REQUIRED)
++pkg_check_modules(LIBWESTON_DESKTOP libweston-desktop-10 REQUIRED)
+ 
+ find_package(Threads REQUIRED)
+ 
+diff --git a/ivi-layermanagement-examples/simple-weston-client/CMakeLists.txt b/ivi-layermanagement-examples/simple-weston-client/CMakeLists.txt
+index fc56304..88f6684 100644
+--- a/ivi-layermanagement-examples/simple-weston-client/CMakeLists.txt
++++ b/ivi-layermanagement-examples/simple-weston-client/CMakeLists.txt
+@@ -22,14 +22,14 @@ project (simple-weston-client)
+ find_package(PkgConfig)
+ pkg_check_modules(WAYLAND_CLIENT wayland-client REQUIRED)
+ pkg_check_modules(WAYLAND_CURSOR wayland-cursor REQUIRED)
+-pkg_check_modules(LIBWESTON_PROTOCOLS libweston-9-protocols QUIET)
++pkg_check_modules(LIBWESTON_PROTOCOLS libweston-10-protocols QUIET)
+ 
+ if(${LIBWESTON_PROTOCOLS_FOUND})
+     #check for DLT
+     pkg_check_modules(DLT automotive-dlt QUIET)
+ 
+     #import the pkgdatadir from libweston-protocols pkgconfig file
+-    execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} --variable=pkgdatadir libweston-9-protocols
++    execute_process(COMMAND ${PKG_CONFIG_EXECUTABLE} --variable=pkgdatadir libweston-10-protocols
+                     OUTPUT_VARIABLE WestonProtocols_PKGDATADIR)
+     string(REGEX REPLACE "[\r\n]" "" WestonProtocols_PKGDATADIR "${WestonProtocols_PKGDATADIR}")
+     SET(LIBWESTON_PROTOCOLS_PKGDATADIR ${WestonProtocols_PKGDATADIR})
+-- 
+2.25.1
+

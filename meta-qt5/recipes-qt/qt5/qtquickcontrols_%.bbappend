@@ -1,4 +1,4 @@
-do_install_append() {
+do_install:append() {
 	if ${@bb.utils.contains('INVITE_PLATFORM', 'b2qt', 'true', 'false', d)}; then
 		install -d ${D}/data/user/qt/enterprise-dashboard
 		install -d ${D}/data/user/qt/enterprise-gallery
@@ -26,5 +26,5 @@ do_install_append() {
 	fi
 }
 
-FILES_${PN} += "/data/user/qt/"
-FILES_${PN}-dbg += "/data/user/qt/*/*/.debug/"
+FILES:${PN} += "/data/user/qt/"
+FILES:${PN}-dbg += "/data/user/qt/*/*/.debug/"

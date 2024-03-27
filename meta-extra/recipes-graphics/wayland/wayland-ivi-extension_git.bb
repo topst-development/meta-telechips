@@ -5,28 +5,24 @@ BUGTRACKER = "http://bugs.genivi.org/enter_bug.cgi?product=Wayland%20IVI%20Exten
 LICENSE = "Apache-2.0"
 LIC_FILES_CHKSUM = "file://LICENSE;md5=1f1a56bb2dadf5f2be8eb342acf4ed79"
 
-SRC_URI = "git://github.com/GENIVI/${BPN}.git;protocol=http \
-           file://0001-Added-ivi-id-agent-to-CMake.patch \
-           file://0002-add-LayerManagerControl-error-status.patch \
-           file://0002-ivi-id-agent-added-ivi-id-agent.patch \
-           file://0003-ivi-controller-load-id-agent-module.patch \
-           file://0004-ivi-ilmcontrol-added-focus-notification.patch \
-           file://0005-fix-plugin-registry-include.patch \
-"
-SRCREV = "736fb654ac81230cf4f9e51a5772d3a02d7639bf"
+SRCREV = "641a541c15785c004c61065a5044a8db3fe4255c"
 
-PV = "2.2.0+git${SRCPV}"
+SRC_URI = "git://github.com/GENIVI/${BPN}.git;protocol=https;branch=master \
+           file://0001-CMakeLists-update-libweston-to-version-10.patch \
+    "
+
 S = "${WORKDIR}/git"
 
 DEPENDS = "weston virtual/libgles2 pixman wayland-native"
 
-FILESEXTRAPATHS_prepend := ":${THISDIR}/wayland-ivi-extension:"
+inherit cmake pkgconfig
 
-inherit cmake
+FILES:${PN} += "${datadir}/wayland-protocols/stable/ivi-application/ivi-application.xml"
+FILES:${PN} += "${libdir}/weston/*"
+FILES:${PN}-dbg += "${libdir}/weston/.debug/*"
 
-FILES_${PN} += "${libdir}/weston/*"
-FILES_${PN} += "${datadir}/wayland-protocols/stable/ivi-application/*"
+EXTRA_OECMAKE += "-DLIB_SUFFIX=${@d.getVar('baselib').replace('lib', '')}"
 
-FILES_${PN}-dbg += "${libdir}/weston/.debug/*"
-
-EXTRA_OECMAKE += "-DLIB_SUFFIX=${@d.getVar('baselib', True).replace('lib', '')}"
+# Need these temporarily to prevent a non-fatal do_package_qa issue
+INSANE_SKIP:${PN} += "dev-deps"
+INSANE_SKIP:${PN}-dev += "dev-elf dev-so"

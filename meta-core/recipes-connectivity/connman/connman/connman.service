@@ -1,0 +1,18 @@
+[Unit]
+Description=Connection service
+After=dbus.service network-pre.target
+Before=network.target remote-fs-pre.target
+Wants=network.target remote-fs-pre.target
+
+[Service]
+Type=dbus
+BusName=net.connman
+Restart=on-failure
+ExecStartPre=/sbin/ifconfig eth0 down
+ExecStartPre=/sbin/ifconfig eth0 hw ether MY_MAC_ADDRESS
+ExecStartPre=-/usr/share/connman/wired-setup
+ExecStart=/usr/sbin/connmand -n
+StandardOutput=null
+
+[Install]
+WantedBy=multi-user.target

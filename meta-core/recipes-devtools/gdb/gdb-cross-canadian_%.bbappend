@@ -1,2 +1,1 @@
-PACKAGECONFIG ??= "python"
-#PACKAGECONFIG ??= "python tui"
+PACKAGECONFIG ??= "python tui"

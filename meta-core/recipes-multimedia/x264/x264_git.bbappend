@@ -1,1 +1,1 @@
-X264_DISABLE_ASM_armv7a = "--disable-asm"
+X264_DISABLE_ASM:armv7a = "--disable-asm"

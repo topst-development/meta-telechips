@@ -1,8 +1,9 @@
 [Unit]
-Description=DHCPv4 Server Daemon
+Description=A minimalistic network configuration daemon with DHCPv4, rdisc and DHCPv6 support
 Documentation=man:dhcpd(8) man:dhcpd.conf(5)
-After=network.target
-After=time-sync.target
+Wants=network.target
+Before=network.target
+Conflicts=connman.service
 
 [Service]
 PIDFile=@localstatedir@/run/dhcpd.pid
